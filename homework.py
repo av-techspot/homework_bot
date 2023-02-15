@@ -1,10 +1,10 @@
-import telegram
-import os
 import logging
-import requests
-import time
+import os
 import sys
+import time
 
+import requests
+import telegram
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -32,29 +32,34 @@ HOMEWORK_VERDICTS = {
 
 
 def check_tokens():
-    """Проверка наличия всех необходимых токенов"""
+    """Проверка наличия всех необходимых токенов."""
     if PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         return True
     else:
         return False
 
+
 def send_message(bot, message):
-    """Отправка сообщения ботом"""
+    """Отправка сообщения ботом."""
     chat_id = TELEGRAM_CHAT_ID
     text = message
     try:
         bot.send_message(chat_id, text)
-        logging.debug(f'Сообщение удачно отправлено')
+        logging.debug('Сообщение удачно отправлено')
     except Exception as error:
         logging.error(f'Ошибка отправки сообщения: {error}')
 
 
 def get_api_answer(timestamp):
-    """Получение ответа от API"""
+    """Получение ответа от API."""
     payload = {'from_date': timestamp}
     try:
-        response = requests.get(ENDPOINT, headers=HEADERS, params=payload).json()
-        if requests.get(ENDPOINT, headers=HEADERS, params=payload).status_code != 200:
+        response = requests.get(
+            ENDPOINT, headers=HEADERS, params=payload
+        ).json()
+        if requests.get(
+            ENDPOINT, headers=HEADERS, params=payload
+        ).status_code != 200:
             logging.error('недоступность эндпоинта '
                           'https://practicum.yandex.ru/api/user_api/'
                           'homework_statuses/')
@@ -65,8 +70,8 @@ def get_api_answer(timestamp):
 
 
 def check_response(response):
-    """Проверка ответа на корректность"""
-    if response == None:
+    """Проверка ответа на корректность."""
+    if response is None:
         logging.error('Ответ пуст')
         raise Exception
     if not isinstance(response, dict):
@@ -76,17 +81,18 @@ def check_response(response):
         logging.error('В ответе нет списка домашек')
         raise TypeError
 
+
 def parse_status(homework):
-    """Получение статуса проверки работы"""
-    if homework.get('status') == None:
+    """Получение статуса проверки работы."""
+    if homework.get('status') is None:
         logging.error('Статус не обнаружен')
         raise KeyError('Статус не обнаружен')
     if homework.get('status') not in HOMEWORK_VERDICTS:
         logging.error('Ожидаемые ключи статуса отсутствуют')
-        raise KeyError(f'Ошибка')
+        raise KeyError('Ошибка')
     if not homework.get('homework_name'):
-        raise KeyError(f'Не найден ключ')
-    if homework != None:
+        raise KeyError('Не найден ключ')
+    if homework is not None:
         homework_name = homework.get('homework_name')
         homework_status = homework.get('status')
         return (f'Изменился статус проверки работы "{homework_name}". '
@@ -97,7 +103,6 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-
     if not check_tokens():
         logging.critical('Не все переменные окружения на месте')
         sys.exit('Не удалось найти токен')
@@ -121,9 +126,10 @@ def main():
             send_message(bot, message)
 
         finally:
-            if response.get('current_date') != None:
+            if response.get('current_date') is not None:
                 timestamp = response.get('current_date')
             time.sleep(RETRY_PERIOD)
+
 
 if __name__ == '__main__':
     main()
