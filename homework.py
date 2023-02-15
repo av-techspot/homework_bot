@@ -13,10 +13,9 @@ PRACTICUM_TOKEN = os.getenv('PR_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TG_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TG_CHAT_ID')
 
-stdout_handler = logging.StreamHandler(sys.stdout)
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO,
+    level=logging.DEBUG,
     stream=sys.stdout)
 
 RETRY_PERIOD = 600
@@ -45,7 +44,8 @@ def send_message(bot, message):
     text = message
     try:
         bot.send_message(chat_id, text)
-        logging.debug('Сообщение удачно отправлено')
+        logging.debug('Сообщение успешно отправлено')
+        bot.send_message(chat_id, 'Успешно отправлено')
     except Exception as error:
         logging.error(f'Ошибка отправки сообщения: {error}')
 
