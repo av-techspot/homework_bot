@@ -55,16 +55,21 @@ def get_api_answer(timestamp):
         response_raw = requests.get(
             ENDPOINT, headers=HEADERS, params=payload
         )
-        response = response_raw.json()
-        if response_raw.status_code != 200:
-            logger.error('недоступность эндпоинта '
-                         'https://practicum.yandex.ru/api/user_api/'
-                         'homework_statuses/')
-            raise Exception('Нет доступа к эндпоинту')
-    except json.decoder.JSONDecodeError as error:
-        logger.error(f'Ошибка декодера JSON: {error}')
     except requests.RequestException as error:
         logger.error(f'Ошибка выполнения запроса: {error}')
+        raise Exception('Ошибка выполнения запроса')
+
+    if response_raw.status_code != 200:
+        logger.error('недоступность эндпоинта '
+                     'https://practicum.yandex.ru/api/user_api/'
+                     'homework_statuses/')
+        raise Exception('Нет доступа к эндпоинту')
+
+    try:
+        response = response_raw.json()
+    except json.decoder.JSONDecodeError as error:
+        logger.error(f'Ошибка декодера JSON: {error}')
+        raise Exception('Ошибка декодера JSON')
     return response
 
 
@@ -117,12 +122,9 @@ def main():
         try:
             response = get_api_answer(timestamp)
             check_response(response)
-            homeworks_length = len(response.get('homeworks'))
-            i = 0
-            while i < homeworks_length:
-                message = parse_status(response.get('homeworks')[i])
+            for hometask in response.get('homeworks'):
+                message = parse_status(hometask)
                 send_message(bot, message)
-                i += 1
 
         except Exception as error:
             logger.error(f'Ошибка при запросе к API: {error}')
