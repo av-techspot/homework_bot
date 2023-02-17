@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 import time
+import json
 
 import requests
 import telegram
@@ -17,6 +18,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.DEBUG,
     stream=sys.stdout)
+logger = logging.getLogger(__name__)
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -32,63 +34,63 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверка наличия всех необходимых токенов."""
-    if PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
-        return True
-    else:
-        return False
+    return PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID
 
 
 def send_message(bot, message):
     """Отправка сообщения ботом."""
-    chat_id = TELEGRAM_CHAT_ID
-    text = message
     try:
-        bot.send_message(chat_id, text)
-        logging.debug('Сообщение успешно отправлено')
-        bot.send_message(chat_id, 'Успешно отправлено')
+        bot.send_message(TELEGRAM_CHAT_ID, message)
+        logger.debug('Сообщение успешно отправлено')
+    except telegram.TelegramError as error:
+        logger.error(f'Ошибка отправки на стороне Telegram: {error}')
     except Exception as error:
-        logging.error(f'Ошибка отправки сообщения: {error}')
+        logger.error(f'Ошибка отправки сообщения: {error}')
 
 
 def get_api_answer(timestamp):
     """Получение ответа от API."""
     payload = {'from_date': timestamp}
     try:
-        response = requests.get(
+        response_raw = requests.get(
             ENDPOINT, headers=HEADERS, params=payload
-        ).json()
-        if requests.get(
-            ENDPOINT, headers=HEADERS, params=payload
-        ).status_code != 200:
-            logging.error('недоступность эндпоинта '
-                          'https://practicum.yandex.ru/api/user_api/'
-                          'homework_statuses/')
-            raise Exception
+        )
+        response = response_raw.json()
+        if response_raw.status_code != 200:
+            logger.error('недоступность эндпоинта '
+                         'https://practicum.yandex.ru/api/user_api/'
+                         'homework_statuses/')
+            raise Exception('Нет доступа к эндпоинту')
+    except json.decoder.JSONDecodeError as error:
+        logger.error(f'Ошибка декодера JSON: {error}')
     except requests.RequestException as error:
-        logging.error(error)
+        logger.error(f'Ошибка выполнения запроса: {error}')
     return response
 
 
 def check_response(response):
     """Проверка ответа на корректность."""
     if response is None:
-        logging.error('Ответ пуст')
-        raise Exception
+        logger.error('Ответ пуст')
+        raise Exception('Ответ пуст')
     if not isinstance(response, dict):
-        logging.error('Ответ не содержит словаря')
+        logger.error('Ответ не содержит словаря')
         raise TypeError
     if not isinstance(response.get('homeworks'), list):
-        logging.error('В ответе нет списка домашек')
+        logger.error('В ответе нет списка домашек')
+        raise TypeError
+    if not isinstance(response.get('current_date'), int):
+        logger.error('В ответе нет UNIX-метки')
         raise TypeError
 
 
 def parse_status(homework):
     """Получение статуса проверки работы."""
     if homework.get('status') is None:
-        logging.error('Статус не обнаружен')
+        logger.error('Статус не обнаружен')
         raise KeyError('Статус не обнаружен')
     if homework.get('status') not in HOMEWORK_VERDICTS:
-        logging.error('Ожидаемые ключи статуса отсутствуют')
+        logger.error('Ожидаемые ключи статуса отсутствуют')
         raise KeyError('Ошибка')
     if not homework.get('homework_name'):
         raise KeyError('Не найден ключ')
@@ -104,7 +106,7 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        logging.critical('Не все переменные окружения на месте')
+        logger.critical('Не все переменные окружения на месте')
         sys.exit('Не удалось найти токен')
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
@@ -116,12 +118,14 @@ def main():
             response = get_api_answer(timestamp)
             check_response(response)
             homeworks_length = len(response.get('homeworks'))
-            for i in range(0, homeworks_length):
+            i = 0
+            while i < homeworks_length:
                 message = parse_status(response.get('homeworks')[i])
                 send_message(bot, message)
+                i += 1
 
         except Exception as error:
-            logging.error(f'Ошибка при запросе к API: {error}')
+            logger.error(f'Ошибка при запросе к API: {error}')
             message = f'Сбой в работе программы: {error}'
             send_message(bot, message)
 
